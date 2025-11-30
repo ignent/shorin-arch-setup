@@ -84,6 +84,32 @@ done
 
 echo "----------------------------------------------------"
 success "All selected modules executed successfully!"
+
+# ==============================================================================
+# Finalization & Reboot
+# ==============================================================================
+
+echo "----------------------------------------------------"
+success "All selected modules executed successfully!"
+
+# Cleanup the state file so the next run starts fresh
+if [ -f "$STATE_FILE" ]; then
+    rm "$STATE_FILE"
+fi
+
+echo -e "${GREEN}Installation Complete! The system needs to reboot to apply changes.${NC}"
+echo -e "${YELLOW}System will REBOOT automatically in 10 seconds...${NC}"
+
+# Wait for 10 seconds. If no input, default to 'Y' (Reboot)
+read -t 10 -p "Reboot now? [Y/n] " choice
+choice=${choice:-Y}
+
+if [[ "$choice" =~ ^[Yy]$ ]]; then
+    log "Rebooting system..."
+    reboot
+else
+    log "Reboot skipped. Please remember to reboot manually!"
+fi
 # Optional: Clean up state file on full success?
 # rm "$STATE_FILE" 
 # I suggest keeping it unless you want to force full reinstall next time.
