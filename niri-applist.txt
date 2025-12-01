@@ -12,7 +12,7 @@ swayidle
 wl-clipboard
 clipse-bin
 clipse-gui
-satty
+satty-git
 swww
 waypaper-git
 waybar-cava-git
