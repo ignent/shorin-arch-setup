@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 99-apps.sh - Common Applications Installation (Visual Enhanced)
+# 99-apps.sh - Common Applications Installation (Visual Enhanced v5.0)
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -93,7 +93,7 @@ if [ ${#YAY_APPS[@]} -gt 0 ]; then
     BATCH_LIST="${YAY_APPS[*]}"
     log "Attempting batch install..."
     
-    # Attempt Batch
+    # Attempt Batch (Using exe for visual feedback)
     # [FIX] yay -S -> yay -Syu
     exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST
     batch_ret=$?
@@ -110,7 +110,7 @@ if [ ${#YAY_APPS[@]} -gt 0 ]; then
     if [ $batch_ret -ne 0 ]; then
         for pkg in "${YAY_APPS[@]}"; do
             # Attempt 1
-            # [FIX] yay -S -> yay -Syu
+            # [FIX] cmd -> exe, yay -S -> yay -Syu
             if ! exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
                 ret=$?
                 if [ $ret -eq 130 ]; then
@@ -120,7 +120,6 @@ if [ ${#YAY_APPS[@]} -gt 0 ]; then
                 
                 # Retry Attempt 2
                 warn "Retrying '$pkg'..."
-                # [FIX] yay -S -> yay -Syu
                 if ! exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
                     ret_retry=$?
                     if [ $ret_retry -eq 130 ]; then
