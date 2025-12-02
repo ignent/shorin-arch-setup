@@ -123,6 +123,7 @@ if [ -f "$LIST_FILE" ]; then
             for git_pkg in "${GIT_LIST[@]}"; do
                 if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
                     warn "Retrying $git_pkg..."
+                    # Toggle Mirror
                     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
                         runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
                     else
@@ -167,12 +168,10 @@ DOTFILES_SOURCE="$PARENT_DIR/kde-dotfiles"
 if [ -d "$DOTFILES_SOURCE" ]; then
     log "Deploying KDE configurations..."
     
-    # Backup .config
     BACKUP_NAME="config_backup_kde_$(date +%s).tar.gz"
     log "Backing up ~/.config to $BACKUP_NAME..."
     exe runuser -u "$TARGET_USER" -- tar -czf "$HOME_DIR/$BACKUP_NAME" -C "$HOME_DIR" .config
     
-    # Copy all files
     log "Copying files..."
     exe runuser -u "$TARGET_USER" -- cp -rfT "$DOTFILES_SOURCE" "$HOME_DIR"
     
@@ -204,13 +203,46 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Enable SDDM
+# 4.5 Deploy Resource Files (README)
 # ------------------------------------------------------------------------------
-section "Step 5/5" "Enable Display Manager"
+log "Deploying desktop resources..."
 
-log "Enabling SDDM..."
+SOURCE_README="$PARENT_DIR/resources/KDE-README.txt"
+DESKTOP_DIR="$HOME_DIR/Desktop"
+
+if [ ! -d "$DESKTOP_DIR" ]; then
+    exe runuser -u "$TARGET_USER" -- mkdir -p "$DESKTOP_DIR"
+fi
+
+if [ -f "$SOURCE_README" ]; then
+    log "Copying KDE-README.txt to Desktop..."
+    exe cp "$SOURCE_README" "$DESKTOP_DIR/"
+    exe chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/KDE-README.txt"
+    success "Readme deployed."
+else
+    warn "resources/KDE-README.txt not found. Skipping."
+fi
+
+# ------------------------------------------------------------------------------
+# 5. Enable SDDM & Theme
+# ------------------------------------------------------------------------------
+section "Step 5/5" "Display Manager Setup"
+
+log "Enabling SDDM Service..."
 exe systemctl enable sddm
-success "SDDM enabled. Will start on reboot."
+
+# --- [NEW] Set SDDM Theme to Breeze ---
+log "Configuring SDDM Theme (Breeze)..."
+SDDM_CONF_DIR="/etc/sddm.conf.d"
+exe mkdir -p "$SDDM_CONF_DIR"
+
+# Write config to a separate file for cleanliness
+cat <<EOF > "$SDDM_CONF_DIR/theme.conf"
+[Theme]
+Current=breeze
+EOF
+
+success "SDDM enabled and theme set to Breeze."
 
 # ------------------------------------------------------------------------------
 # Cleanup
