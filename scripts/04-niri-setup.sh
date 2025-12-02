@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 04-niri-setup.sh - Niri Desktop (Visual Enhanced & -Syu Fixed)
+# 04-niri-setup.sh - Niri Desktop (Visual Enhanced & Portal Fix)
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,7 +25,6 @@ install_local_fallback() {
     
     if [ -f "$pkg_file" ]; then
         warn "Network install failed. Using local fallback..."
-        # [FIX] yay -U usually handles local files, no -Syu needed here
         if exe runuser -u "$TARGET_USER" -- yay -U --noconfirm "$pkg_file"; then
             success "Installed from local backup."
             return 0
@@ -80,12 +79,12 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 1/9" "Core Components"
 
+# Core Packages
 log "Installing Niri & Essentials..."
 PKGS="niri xwayland-satellite xdg-desktop-portal-gnome fuzzel kitty firefox libnotify mako polkit-gnome pciutils"
-# [FIX] -S -> -Syu
 exe pacman -Syu --noconfirm --needed $PKGS
 
-# Firefox Policy (Pywalfox)
+# Firefox Policy
 log "Configuring Firefox Policies..."
 FIREFOX_POLICY_DIR="/etc/firefox/policies"
 exe mkdir -p "$FIREFOX_POLICY_DIR"
@@ -101,14 +100,38 @@ cat <<EOT > "$FIREFOX_POLICY_DIR/policies.json"
   }
 }
 EOT
+exe chmod 755 "/etc/firefox"
+exe chmod 755 "$FIREFOX_POLICY_DIR"
+exe chmod 644 "$FIREFOX_POLICY_DIR/policies.json"
 success "Firefox policy applied."
+
+# ------------------------------------------------------------------------------
+# 1.1 [NEW] Configure XDG Portals (Fix for SDDM/KDE Crash)
+# ------------------------------------------------------------------------------
+log "Configuring XDG Desktop Portals..."
+
+# Ensure we force GNOME portal for Niri to prevent conflicts with KDE/Hyprland portals
+PORTAL_CONF_DIR="$HOME_DIR/.config/xdg-desktop-portal"
+exe runuser -u "$TARGET_USER" -- mkdir -p "$PORTAL_CONF_DIR"
+
+PORTAL_CONF="$PORTAL_CONF_DIR/niri-portals.conf"
+
+cat <<EOT > "/tmp/niri-portals.conf"
+[preferred]
+default=gnome
+org.freedesktop.impl.portal.ScreenCast=gnome
+org.freedesktop.impl.portal.Screenshot=gnome
+EOT
+
+exe cp "/tmp/niri-portals.conf" "$PORTAL_CONF"
+exe chown "$TARGET_USER:$TARGET_USER" "$PORTAL_CONF"
+success "Portal priority configured (niri-portals.conf)."
 
 # ------------------------------------------------------------------------------
 # 2. File Manager (Nautilus) Setup
 # ------------------------------------------------------------------------------
 section "Step 2/9" "File Manager & GPU"
 
-# [FIX] -S -> -Syu
 exe pacman -Syu --noconfirm --needed ffmpegthumbnailer gvfs-smb nautilus-open-any-terminal file-roller gnome-keyring gst-plugins-base gst-plugins-good gst-libav nautilus
 
 if [ ! -f /usr/bin/gnome-terminal ] || [ -L /usr/bin/gnome-terminal ]; then
@@ -137,7 +160,6 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 3/9" "Network Optimization"
 
-# [FIX] -S -> -Syu
 exe pacman -Syu --noconfirm --needed flatpak gnome-software
 exe flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
@@ -194,22 +216,17 @@ if [ -f "$LIST_FILE" ]; then
         if [ -n "$BATCH_LIST" ]; then
             log "Phase 1: Batch Install..."
             
-            # Attempt 1
-            # [FIX] yay -S -> yay -Syu
             if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
                 warn "Batch failed. Retrying with Mirror Toggle..."
                 
-                # Toggle Mirror
                 if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
                     runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
                 else
                     runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
                 fi
                 
-                # Attempt 2
-                # [FIX] yay -S -> yay -Syu
                 if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
-                    error "Batch install failed. Check logs."
+                    error "Batch install failed."
                 else
                     success "Batch installed (Retry)."
                 fi
@@ -220,23 +237,17 @@ if [ -f "$LIST_FILE" ]; then
         if [ ${#GIT_LIST[@]} -gt 0 ]; then
             log "Phase 2: Git Install..."
             for git_pkg in "${GIT_LIST[@]}"; do
-                # Attempt 1
-                # [FIX] yay -S -> yay -Syu
                 if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
                     warn "Install failed. Retrying..."
                     
-                    # Toggle Mirror
                     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
                         runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
                     else
                         runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
                     fi
                     
-                    # Attempt 2
-                    # [FIX] yay -S -> yay -Syu
                     if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
                         
-                        # Local Fallback
                         warn "Checking local cache..."
                         if install_local_fallback "$git_pkg"; then
                             :
@@ -258,7 +269,6 @@ if [ -f "$LIST_FILE" ]; then
         
         if ! command -v waybar &> /dev/null; then
             warn "Waybar missing. Installing stock..."
-            # [FIX] -S -> -Syu
             exe pacman -Syu --noconfirm --needed waybar
         fi
 
@@ -266,14 +276,13 @@ if [ -f "$LIST_FILE" ]; then
             warn "Awww not found. Will try Swaybg later."
         fi
 
-        # Report
         if [ ${#FAILED_PACKAGES[@]} -gt 0 ]; then
             DOCS_DIR="$HOME_DIR/Documents"
             REPORT_FILE="$DOCS_DIR/安装失败的软件.txt"
             if [ ! -d "$DOCS_DIR" ]; then runuser -u "$TARGET_USER" -- mkdir -p "$DOCS_DIR"; fi
             printf "%s\n" "${FAILED_PACKAGES[@]}" > "$REPORT_FILE"
             chown "$TARGET_USER:$TARGET_USER" "$REPORT_FILE"
-            error "Some packages failed. See: $REPORT_FILE"
+            warn "Some packages failed. See: $REPORT_FILE"
         fi
     fi
 else
@@ -290,7 +299,6 @@ TEMP_DIR="/tmp/shorin-repo"
 rm -rf "$TEMP_DIR"
 
 log "Cloning repository..."
-# Attempt 1
 if ! exe runuser -u "$TARGET_USER" -- git clone "$REPO_URL" "$TEMP_DIR"; then
     warn "Clone failed. Retrying..."
     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
@@ -311,7 +319,6 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
     
     log "Applying dotfiles..."
     exe runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
-    success "Dotfiles applied."
     
     if [ "$TARGET_USER" != "shorin" ]; then
         OUTPUT_KDL="$HOME_DIR/.config/niri/output.kdl"
@@ -324,7 +331,6 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
     # Ultimate Fallback
     if ! runuser -u "$TARGET_USER" -- command -v awww &> /dev/null; then
         warn "Awww missing. Switching to Swaybg..."
-        # [FIX] -S -> -Syu
         exe pacman -Syu --noconfirm --needed swaybg
         SCRIPT_PATH="$HOME_DIR/.config/scripts/niri_set_overview_blur_dark_bg.sh"
         if [ -f "$SCRIPT_PATH" ]; then
@@ -344,7 +350,6 @@ WALL_DEST="$HOME_DIR/Pictures/Wallpapers"
 if [ -d "$TEMP_DIR/wallpapers" ]; then
     exe runuser -u "$TARGET_USER" -- mkdir -p "$WALL_DEST"
     exe runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/wallpapers/." "$WALL_DEST/"
-    success "Wallpapers installed."
 fi
 rm -rf "$TEMP_DIR"
 
@@ -353,15 +358,11 @@ rm -rf "$TEMP_DIR"
 # ------------------------------------------------------------------------------
 section "Step 7/9" "Hardware Tools"
 
-# [FIX] yay -S -> yay -Syu
 exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed ddcutil-service
 gpasswd -a "$TARGET_USER" i2c
 
-# [FIX] -S -> -Syu
 exe pacman -Syu --noconfirm --needed swayosd
 systemctl enable --now swayosd-libinput-backend.service > /dev/null 2>&1
-
-success "Hardware tools configured."
 
 # ------------------------------------------------------------------------------
 # Cleanup
