@@ -20,7 +20,22 @@ install_local_fallback() {
     if [ ! -d "$search_dir" ]; then return 1; fi
     local pkg_file=$(find "$search_dir" -maxdepth 1 -name "*.pkg.tar.zst" | head -n 1)
     if [ -f "$pkg_file" ]; then
-        warn "Network install failed. Using local fallback..."
+        warn "Using local fallback for '$pkg_name'..."
+
+        # [FIX] First, install dependencies from the local package's metadata
+        log "Resolving dependencies for local package..."
+        # Extract dependency list from the .PKGINFO file inside the tarball
+        local deps=$(tar -xOf "$pkg_file" .PKGINFO | grep -E '^depend' | cut -d '=' -f 2 | xargs)
+        
+        if [ -n "$deps" ]; then
+            log "Dependencies found: $deps"
+            if ! exe runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --asdeps $deps; then
+                error "Failed to install dependencies for local package '$pkg_name'."
+                return 1
+            fi
+        fi
+
+        log "Dependencies met. Installing local package..."
         if exe runuser -u "$TARGET_USER" -- yay -U --noconfirm "$pkg_file"; then
             success "Installed from local."; return 0
         else
@@ -125,7 +140,7 @@ if [ -f "$LIST_FILE" ]; then
         if [ -n "$BATCH_LIST" ]; then
             log "Batch Install..."
             if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
-                warn "Batch failed. Retrying with Mirror Toggle..."
+                warn "Batch failed. Retrying with mirror toggle..."
                 if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
                     runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
                 else
@@ -134,7 +149,7 @@ if [ -f "$LIST_FILE" ]; then
                 if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
                     error "Batch failed."
                 else
-                    success "Batch installed (Retry)."
+                    success "Batch installed (on retry)."
                 fi
             fi
         fi
@@ -143,26 +158,48 @@ if [ -f "$LIST_FILE" ]; then
         if [ ${#GIT_LIST[@]} -gt 0 ]; then
             log "Git Install..."
             for git_pkg in "${GIT_LIST[@]}"; do
-                if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
-                    warn "Retrying $git_pkg..."
-                    # Toggle Mirror
+                # --- 新逻辑：CN 环境本地优先 ---
+                if [ "$IS_CN_ENV" = true ]; then
+                    log "Attempting local install for '$git_pkg'..."
+                    if install_local_fallback "$git_pkg"; then
+                        success "Installed $git_pkg from local cache."
+                        continue # 安装成功，跳过网络安装
+                    else
+                        log "Local package not found. Proceeding with network install..."
+                    fi
+                fi
+
+                # --- 标准网络安装流程 (作为回退或默认) ---
+                # 尝试 1: 正常网络安装
+                if exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
+                    success "Installed $git_pkg"
+                else
+                    # 尝试 2: 切换镜像后重试
+                    warn "Network install failed for $git_pkg. Retrying with mirror toggle..."
                     if runuser -u "$TARGET_USER" -- git config --global --get url."https://gitclone.com/github.com/".insteadOf > /dev/null; then
                         runuser -u "$TARGET_USER" -- git config --global --unset url."https://gitclone.com/github.com/".insteadOf
                     else
                         runuser -u "$TARGET_USER" -- git config --global url."https://gitclone.com/github.com/".insteadOf "https://github.com/"
                     fi
-                    
-                    if ! exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
-                        warn "Checking local cache..."
-                        if install_local_fallback "$git_pkg"; then :; else
-                            error "Failed: $git_pkg"
+
+                    if exe runuser -u "$TARGET_USER" -- env GOPROXY=$GOPROXY yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$git_pkg"; then
+                        success "Installed $git_pkg (on retry)."
+                    else
+                        # 尝试 3: 如果不是CN环境，最后尝试本地回退
+                        if [ "$IS_CN_ENV" = false ]; then
+                            warn "Final attempt: Checking local cache for $git_pkg..."
+                            if install_local_fallback "$git_pkg"; then
+                                success "Installed $git_pkg from local cache (fallback)."
+                            else
+                                error "Failed to install '$git_pkg' after all attempts."
+                                FAILED_PACKAGES+=("$git_pkg")
+                            fi
+                        else
+                            # CN环境下，本地安装已在最开始尝试过
+                            error "Failed to install '$git_pkg' after all attempts."
                             FAILED_PACKAGES+=("$git_pkg")
                         fi
-                    else
-                        success "Installed $git_pkg"
                     fi
-                else
-                    success "Installed $git_pkg"
                 fi
             done
         fi
