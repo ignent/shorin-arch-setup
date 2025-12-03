@@ -157,36 +157,60 @@ exe_silent() {
 # 动态选择 Flathub 镜像源
 select_flathub_mirror() {
     # 定义镜像列表：[显示名称]="URL"
+    # [FIX] 将颜色代码移出 key，避免影响长度计算
     declare -A mirrors=(
-        ["SJTU (Shanghai Jiao Tong) - ${H_GREEN}Recommended${NC}"]="https://mirror.sjtu.edu.cn/flathub"
+        ["SJTU (Shanghai Jiao Tong) - Recommended"]="https://mirror.sjtu.edu.cn/flathub"
         ["TUNA (Tsinghua University)"]="https://mirror.tuna.tsinghua.edu.cn/flathub"
         ["USTC (Univ of Sci & Tech of China)"]="https://mirrors.ustc.edu.cn/flathub"
         ["BFSU (Beijing Foreign Studies Univ)"]="https://mirrors.bfsu.edu.cn/flathub"
+        ["Flathub Official (Global)"]="https://dl.flathub.org/repo/flathub.flatpakrepo"
     )
     local mirror_keys=("${!mirrors[@]}")
 
+    # --- 动态计算菜单宽度 ---
+    local max_len=0
+    for key in "${mirror_keys[@]}"; do
+        # 去除颜色代码计算真实长度
+        local clean_key=$(echo "$key" | sed 's/ - Recommended//')
+        if (( ${#clean_key} > max_len )); then
+            max_len=${#clean_key}
+        fi
+    done
+    # 加上 "[x] " 和 " - Recommended" 的长度
+    local content_width=$((max_len + 4 + 14)) 
+    local title_text="Select Flathub Mirror (Timeout 60s -> Default SJTU)"
+    local title_padding=$((content_width - ${#title_text}))
+
+    # --- 动态生成菜单 ---
     echo ""
-    echo -e "${H_PURPLE}╭──────────────────────────────────────────────────────────────────╮${NC}"
-    echo -e "${H_PURPLE}│${NC} ${BOLD}Select Flathub Mirror (Timeout 60s -> Default SJTU)${NC}              ${H_PURPLE}│${NC}"
-    echo -e "${H_PURPLE}├──────────────────────────────────────────────────────────────────┤${NC}"
+    printf "${H_PURPLE}╭─%s─╮${NC}\n" "$(printf '─%.0s' $(seq 1 $((content_width + 2))))"
+    printf "${H_PURPLE}│${NC} ${BOLD}%s${NC}%*s ${H_PURPLE}│${NC}\n" "$title_text" "$title_padding" ""
+    printf "${H_PURPLE}├─%s─┤${NC}\n" "$(printf '─%.0s' $(seq 1 $((content_width + 2))))"
     
     for i in "${!mirror_keys[@]}"; do
-        # 使用 printf 格式化输出，确保对齐
-        printf "${H_PURPLE}│${NC} ${H_CYAN}[%d]${NC} %-62s ${H_PURPLE}│${NC}\n" "$((i+1))" "${mirror_keys[$i]}"
+        local key="${mirror_keys[$i]}"
+        local line
+        # [FIX] 先格式化，再用 echo -e 渲染颜色，保证对齐
+        if [[ "$key" == *"Recommended"* ]]; then
+            line=$(printf " [%d] %s" "$((i+1))" "${key/ - Recommended/}")
+            line="${line} - ${H_GREEN}Recommended${NC}"
+        else
+            line=$(printf " [%d] %s" "$((i+1))" "$key")
+        fi
+        
+        local clean_line=$(echo -e "$line" | sed 's/\x1b\[[0-9;]*m//g')
+        local padding=$((content_width - ${#clean_line}))
+        echo -e "${H_PURPLE}│${NC}${H_CYAN}${line}${NC}%*s ${H_PURPLE}│${NC}" "$padding" ""
     done
 
-    echo -e "${H_PURPLE}╰──────────────────────────────────────────────────────────────────╯${NC}"
+    printf "${H_PURPLE}╰─%s─╯${NC}\n" "$(printf '─%.0s' $(seq 1 $((content_width + 2))))"
     echo ""
 
     local choice
     read -t 60 -p "$(echo -e "   ${H_YELLOW}Enter choice [1-${#mirror_keys[@]}]: ${NC}")" choice
-    # 处理超时后换行
     if [ $? -ne 0 ]; then echo ""; fi
-
-    # 默认选项为 1 (SJTU)
     choice=${choice:-1}
     
-    # 验证输入是否为有效数字，否则使用默认值
     if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#mirror_keys[@]}" ]; then
         log "Invalid choice. Defaulting to SJTU..."
         choice=1
@@ -194,6 +218,6 @@ select_flathub_mirror() {
 
     local selected_key="${mirror_keys[$((choice-1))]}"
     local selected_url="${mirrors[$selected_key]}"
-    log "Using ${selected_key%% *} Mirror..."
+    log "Using $(echo "${selected_key}" | sed 's/ - Recommended//') Mirror..."
     exe flatpak remote-modify flathub --url="$selected_url"
 }
