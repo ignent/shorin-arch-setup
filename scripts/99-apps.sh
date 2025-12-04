@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# 99-apps.sh - Common Applications (Multi-Desktop Aware + Timeout)
+# 99-apps.sh - Common Applications (Batch Yay + Individual Flatpak + No Retry)
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/00-utils.sh"
 
 check_root
 
-trap 'echo -e "\n   ${H_YELLOW}>>> Operation cancelled by user (Ctrl+C). Skipping current item...${NC}"' INT
+trap 'echo -e "\n   ${H_YELLOW}>>> Operation cancelled by user (Ctrl+C). Skipping...${NC}"' INT
 
 # ------------------------------------------------------------------------------
 # 0. Identify Target User
@@ -31,7 +31,6 @@ info_kv "Target" "$TARGET_USER"
 # ------------------------------------------------------------------------------
 # 1. List Selection & Confirmation
 # ------------------------------------------------------------------------------
-# Select list based on Desktop Environment
 if [ "$DESKTOP_ENV" == "kde" ]; then
     LIST_FILENAME="kde-common-applist.txt"
 else
@@ -41,12 +40,11 @@ fi
 echo ""
 echo -e "   Selected List: ${BOLD}$LIST_FILENAME${NC} (Based on $DESKTOP_ENV)"
 echo -e "   Format: ${DIM}lines starting with 'flatpak:' use Flatpak, others use Yay.${NC}"
-echo -e "   ${H_YELLOW}Tip: Press Ctrl+C during any install to SKIP that package.${NC}"
+echo -e "   ${H_YELLOW}Tip: Press Ctrl+C to cancel current operation.${NC}"
 echo ""
 
-# [MODIFIED] Added timeout -t 60
 read -t 60 -p "$(echo -e "   ${H_CYAN}Install these applications? [Y/n] (Default Y in 60s): ${NC}")" choice
-if [ $? -ne 0 ]; then echo ""; fi # Handle timeout newline
+if [ $? -ne 0 ]; then echo ""; fi
 
 choice=${choice:-Y}
 
@@ -79,7 +77,7 @@ if [ -f "$LIST_FILE" ]; then
         fi
     done < "$LIST_FILE"
     
-    info_kv "Queue" "Yay: ${#YAY_APPS[@]}" "Flatpak: ${#FLATPAK_APPS[@]}"
+    info_kv "Total Found" "Yay: ${#YAY_APPS[@]}" "Flatpak: ${#FLATPAK_APPS[@]}"
 else
     warn "File $LIST_FILENAME not found. Skipping."
     trap - INT
@@ -90,90 +88,63 @@ fi
 # 3. Install Applications
 # ------------------------------------------------------------------------------
 
-# --- A. Install Yay Apps ---
+# --- A. Install Yay Apps (BATCH MODE) ---
 if [ ${#YAY_APPS[@]} -gt 0 ]; then
-    section "Step 1/2" "System Packages (Yay)"
+    section "Step 1/2" "System Packages (Yay - Batch)"
     
-    # Configure NOPASSWD
-    SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_apps"
-    echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDO_TEMP_FILE"
-    chmod 440 "$SUDO_TEMP_FILE"
-    
-    BATCH_LIST="${YAY_APPS[*]}"
-    log "Attempting batch install..."
-    
-    # yay -Syu
-    exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST
-    batch_ret=$?
-    
-    if [ $batch_ret -eq 0 ]; then
-        success "Batch install successful."
-    elif [ $batch_ret -eq 130 ]; then
-        warn "Batch interrupted (Ctrl+C). Switching to One-by-One..."
+    # 1. Filter out already installed packages
+    YAY_INSTALL_QUEUE=()
+    for pkg in "${YAY_APPS[@]}"; do
+        if pacman -Qi "$pkg" &>/dev/null; then
+            log "Skipping '$pkg' (Already installed)."
+        else
+            YAY_INSTALL_QUEUE+=("$pkg")
+        fi
+    done
+
+    # 2. Execute Batch Install if queue is not empty
+    if [ ${#YAY_INSTALL_QUEUE[@]} -gt 0 ]; then
+        # Configure NOPASSWD for seamless batch install
+        SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_apps"
+        echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" > "$SUDO_TEMP_FILE"
+        chmod 440 "$SUDO_TEMP_FILE"
+        
+        BATCH_LIST="${YAY_INSTALL_QUEUE[*]}"
+        info_kv "Installing" "${#YAY_INSTALL_QUEUE[@]} packages via Yay"
+        
+        # Run Yay Batch
+        if ! exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None $BATCH_LIST; then
+            error "Yay batch installation failed."
+            # Since it's batch, if it fails, we mark the whole queue as potentially failed
+            for pkg in "${YAY_INSTALL_QUEUE[@]}"; do
+                FAILED_PACKAGES+=("yay-batch-fail:$pkg")
+            done
+        else
+            success "Yay batch installation completed."
+        fi
+        
+        rm -f "$SUDO_TEMP_FILE"
     else
-        warn "Batch failed. Switching to One-by-One..."
+        log "All Yay packages are already installed."
     fi
-    
-    # Fallback / Retry One-by-One
-    if [ $batch_ret -ne 0 ]; then
-        for pkg in "${YAY_APPS[@]}"; do
-            # Attempt 1
-            if ! exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
-                ret=$?
-                if [ $ret -eq 130 ]; then
-                    warn "Skipped '$pkg' (User Cancelled)."
-                    continue 
-                fi
-                
-                warn "Retrying '$pkg'..."
-                if ! exe runuser -u "$TARGET_USER" -- yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
-                    ret_retry=$?
-                    if [ $ret_retry -eq 130 ]; then
-                        warn "Skipped '$pkg' (User Cancelled)."
-                    else
-                        error "Failed to install: $pkg"
-                        FAILED_PACKAGES+=("yay:$pkg")
-                    fi
-                else
-                    success "Installed $pkg (Retry)"
-                fi
-            else
-                success "Installed $pkg"
-            fi
-        done
-    fi
-    
-    rm -f "$SUDO_TEMP_FILE"
 fi
 
-# --- B. Install Flatpak Apps ---
+# --- B. Install Flatpak Apps (INDIVIDUAL MODE) ---
 if [ ${#FLATPAK_APPS[@]} -gt 0 ]; then
-    section "Step 2/2" "Flatpak Packages"
+    section "Step 2/2" "Flatpak Packages (Individual)"
     
     for app in "${FLATPAK_APPS[@]}"; do
-        # Attempt 1
+        # 1. Check if installed
+        if flatpak info "$app" &>/dev/null; then
+            log "Skipping '$app' (Already installed)."
+            continue
+        fi
+
+        # 2. Install Individually
+        log "Installing Flatpak: $app ..."
         if ! exe flatpak install -y flathub "$app"; then
-            ret=$?
-            if [ $ret -eq 130 ]; then
-                warn "Skipped '$app' (User Cancelled)."
-                continue
-            fi
-            
-            warn "Flatpak failed. Waiting 3s to Retry..."
-            sleep 3
-            
-            # Attempt 2
-            if ! exe flatpak install -y flathub "$app"; then
-                ret_retry=$?
-                if [ $ret_retry -eq 130 ]; then
-                    warn "Skipped '$app' (User Cancelled)."
-                else
-                    error "Failed to install: $app"
-                    FAILED_PACKAGES+=("flatpak:$app")
-                fi
-            else
-                success "Installed $app (Retry)"
-            fi
+            error "Failed to install: $app"
+            FAILED_PACKAGES+=("flatpak:$app")
         else
             success "Installed $app"
         fi
@@ -189,13 +160,15 @@ if [ ${#FAILED_PACKAGES[@]} -gt 0 ]; then
     
     if [ ! -d "$DOCS_DIR" ]; then runuser -u "$TARGET_USER" -- mkdir -p "$DOCS_DIR"; fi
     
-    echo -e "\n--- Phase 5 (Common Apps - $DESKTOP_ENV) Failures ---" >> "$REPORT_FILE"
+    # Append to report
+    echo -e "\n--- Phase 5 (Common Apps - $DESKTOP_ENV) Failures [$(date)] ---" >> "$REPORT_FILE"
     printf "%s\n" "${FAILED_PACKAGES[@]}" >> "$REPORT_FILE"
     chown "$TARGET_USER:$TARGET_USER" "$REPORT_FILE"
     
-    warn "Some applications failed. See: Documents/安装失败的软件.txt"
+    warn "Some applications failed to install. List saved to:"
+    echo -e "   ${BOLD}$REPORT_FILE${NC}"
 else
-    success "App installation phase completed."
+    success "All scheduled applications processed."
 fi
 
 # ------------------------------------------------------------------------------
@@ -220,7 +193,8 @@ if [ -f "$NATIVE_DESKTOP" ]; then
 fi
 
 # Method 2: Flatpak Steam
-if echo "${FLATPAK_APPS[@]}" | grep -q "com.valvesoftware.Steam" || flatpak list | grep -q "com.valvesoftware.Steam"; then
+# Re-check installed flatpaks to see if Steam is present
+if flatpak list | grep -q "com.valvesoftware.Steam"; then
     log "Checking Flatpak Steam..."
     exe flatpak override --env=LANG=zh_CN.UTF-8 com.valvesoftware.Steam
     success "Applied Flatpak Steam override."
@@ -228,7 +202,7 @@ if echo "${FLATPAK_APPS[@]}" | grep -q "com.valvesoftware.Steam" || flatpak list
 fi
 
 if [ "$STEAM_desktop_modified" = false ]; then
-    log "Steam not found. Skipping fix."
+    log "Steam not found or already configured. Skipping fix."
 fi
 
 # Reset Trap
