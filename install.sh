@@ -296,6 +296,24 @@ if [ -n "$FINAL_USER" ]; then
     echo -e "   ${H_BLUE}●${NC} Log Saved     : ${BOLD}$FINAL_DOCS/log-shorin-arch-setup.txt${NC}"
 fi
 
+# ------------------------------------------------------------------------------
+# Final Cleanup (KISS Principle)
+# ------------------------------------------------------------------------------
+section "Completion" "Cleanup"
+
+# Logic: Only delete if the standard /root path exists.
+# If running as a normal user (cloned in ~), this does nothing (safer).
+if [ -d "/root/shorin-arch-setup" ]; then
+    log "Removing installer from /root..."
+    # Move to root to avoid 'cannot remove current directory' error
+    cd /
+    rm -rfv /root/shorin-arch-setup
+else
+    log "Cleanup skipped (Repository not found in /root/shorin-arch-setup)."
+    log "If you cloned this manually, please remove the folder yourself."
+fi
+
+# --- Reboot Countdown ---
 echo ""
 echo -e "${H_YELLOW}>>> System requires a REBOOT.${NC}"
 
@@ -305,15 +323,13 @@ while read -r -t 0; do read -r; done
 for i in {10..1}; do
     echo -ne "\r   ${DIM}Auto-rebooting in ${i}s... (Press 'n' to cancel)${NC}"
     
-    # 修改处：使用 -n 1 并捕获返回值
+    # Check for 'n' or 'N' input with 1s timeout
     read -t 1 -n 1 input
     if [ $? -eq 0 ]; then
-        # 如果捕获到了输入（状态码为0）
         if [[ "$input" == "n" || "$input" == "N" ]]; then
             echo -e "\n\n   ${H_BLUE}>>> Reboot cancelled.${NC}"
             exit 0
         else
-            # 如果是回车（或除n以外的任意键），直接跳出循环去重启
             break
         fi
     fi
