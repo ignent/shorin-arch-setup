@@ -36,7 +36,7 @@ flatpak:it.mijorus.gearlever             # Gear Lever (AppImage Manager)
 flatpak:com.obsproject.Studio            # OBS Studio (Streaming/Recording)
 flatpak:com.github.wwmm.easyeffects      # Audio Effects for PipeWire (Equalizer)
 flatpak:io.github.ilya_zlobintsev.LACT   # AMD GPU Control Tool (Overclocking/Fan)
-flatpak:com.github.unrud.VideoDownloader # Download youtubu or bilibili videos
-flatpak:io.gitlab.theevilskeleton.Upscaler # image upcaler (make it more clear)
+flatpak:com.github.unrud.VideoDownloader # Download youtube or bilibili videos
+flatpak:io.gitlab.theevilskeleton.Upscaler # image upscaler (make it more clear)
 flatpak:com.github.huluti.Curtail        # compress image (make it smaller)
 flatpak:io.gitlab.adhami3310.Footage     # easy cut vidoes and compress videos
