@@ -66,7 +66,7 @@ section() {
     echo ""
     echo -e "${H_PURPLE}╭──────────────────────────────────────────────────────────────────────────────╮${NC}"
     echo -e "${H_PURPLE}│${NC} ${BOLD}${H_WHITE}$title${NC}"
-    echo -e "${H_PURPLE}│${NC} ${DIM}$subtitle${NC}"
+    echo -e "${H_PURPLE}│${NC} ${H_CYAN}$subtitle${NC}"
     echo -e "${H_PURPLE}╰──────────────────────────────────────────────────────────────────────────────╯${NC}"
     write_log "SECTION" "$title - $subtitle"
 }

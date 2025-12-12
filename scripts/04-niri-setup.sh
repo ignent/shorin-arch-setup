@@ -233,7 +233,9 @@ if [ -f "$LIST_FILE" ]; then
         # -------------------------------------------------------------
         echo ""
         echo -e "   ${H_YELLOW}>>> Default installation will start in 60 seconds.${NC}"
+        echo -e "   ${H_RED}${BOLD}>>> WARNING: AUR packages may fail due to unstable github connection!${NC}"
         echo -e "   ${H_CYAN}>>> Press ANY KEY to customize package selection...${NC}"
+
         
         if read -t 60 -n 1 -s -r; then
             # [CASE A] User pressed a key -> Enter FZF
