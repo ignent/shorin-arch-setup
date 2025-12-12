@@ -220,51 +220,47 @@ if [ -f "$LIST_FILE" ]; then
     log "Launching Archinstall-style Package Selection..."
     
     # -------------------------------------------------------------
-    # FZF TUI Logic
+    # FZF TUI Logic (Immersive Mode: Clear Screen + High Visibility Header)
     # -------------------------------------------------------------
     
-    # 1. 预处理文件：去除空行和纯注释行(# --- 这种)
-    # 2. 通过管道传给 fzf
-    # fzf 参数解释:
-    #   --multi: 开启多选 (TAB键)
-    #   --layout=reverse: 列表从上往下排 (像 archinstall)
-    #   --border: 显示边框
-    #   --prompt: 搜索提示符
-    #   --preview: 核心！读取当前行，用 awk 提取 # 后面的内容显示在右侧
-    #   --preview-window: 预览窗口在右侧，占 50%，自动换行
-    #   --bind: 绑定 ctrl-a 全选, ctrl-d 取消全选
-    
-    # -------------------------------------------------------------
-    # FZF TUI Logic (Fixed for TTY, Clean Layout, Default All)
-    # -------------------------------------------------------------
-    
-    # 1. 过滤空行和注释
+    # 1. 进场清屏，提供沉浸式体验
+    clear
+    echo -e "\n  Loading package list..."
+
     # 2. 启动 FZF
-    # -------------------------------------------------------------
-    # FZF TUI Logic (Fixed marker width error)
-    # -------------------------------------------------------------
+    # 修改点:
+    #   --header: 使用大写和分割线，视觉更强烈
+    #   --color: header:bright-yellow+bold (高亮加粗提示), pointer:bright-cyan (高亮光标)
+    #   --pointer: 改为 ">>" 更显眼
+    #   --marker: 改为 "*" (符合宽度限制)
     
-    # 1. 过滤空行和注释
-    # 2. 启动 FZF
-    # 修正说明: --marker 改为 "* " 以符合宽度限制(max 2 chars)
     SELECTED_LINES=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | \
         fzf --multi \
             --layout=reverse \
             --border \
             --margin=1,2 \
-            --prompt="Search > " \
-            --pointer="->" \
+            --prompt="Search Pkg > " \
+            --pointer=">>" \
             --marker="* " \
             --delimiter='#' \
             --with-nth=1 \
             --bind 'load:select-all' \
             --bind 'ctrl-a:select-all,ctrl-d:deselect-all' \
-            --info=hidden \
-            --header="TAB: Toggle | ENTER: Confirm | CTRL-D: Deselect All" \
+            --info=inline \
+            --header="  [ TAB ] TOGGLE SELECTION   |   [ ENTER ] CONFIRM   |   [ CTRL-D ] DESELECT ALL  " \
             --preview "echo {} | awk -F'#' '{print \$2}' | sed 's/^ //'" \
             --preview-window=right:50%:wrap:border-left \
-            --color=dark,fg+:bright-white,bg+:black,hl:yellow,hl+:yellow,prompt:cyan,pointer:cyan,marker:green,spinner:yellow,header:gray)
-            
+            --color=dark \
+            --color=fg+:bright-white,bg+:black \
+            --color=hl:blue,hl+:blue:bold \
+            --color=header:bright-yellow+bold \
+            --color=info:magenta \
+            --color=prompt:cyan,pointer:bright-cyan,marker:bright-green+bold \
+            --color=spinner:yellow)
+    
+    # 3. 出场清屏，恢复安装日志的纯净
+    clear
+    
     # -------------------------------------------------------------
     
     # Check if user cancelled (Empty output)
