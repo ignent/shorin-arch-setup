@@ -64,7 +64,7 @@ fi
 echo ""
 echo -e "   Selected List: ${BOLD}$LIST_FILENAME${NC}"
 echo -e "   ${H_YELLOW}>>> Do you want to install common applications?${NC}"
-echo -e "   ${H_CYAN}    [ENTER] = Select packages via FZF${NC}"
+echo -e "   ${H_CYAN}    [ENTER] = Select packages${NC}"
 echo -e "   ${H_CYAN}    [N]     = Skip installation${NC}"
 echo -e "   ${H_YELLOW}    [Timeout 60s] = Auto-install ALL default packages (No FZF)${NC}"
 echo ""
