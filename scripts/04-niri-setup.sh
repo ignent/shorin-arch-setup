@@ -217,11 +217,6 @@ verify_installation() {
 
 if [ -f "$LIST_FILE" ]; then
     # [FIX] 1. Pre-load CLEAN default list
-    # 这里我们提前清洗数据：
-    # 1. 去掉注释 (# 及后面的内容)
-    # 2. 去掉 AUR: 前缀 (虽然 yay 也能处理，但保持一致性更好)
-    # 3. 去掉首尾空格
-    # 4. 过滤空行
     mapfile -t DEFAULT_LIST < <(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | sed 's/#.*//; s/AUR://g' | xargs -n1)
 
     if [ ${#DEFAULT_LIST[@]} -eq 0 ]; then
@@ -253,8 +248,6 @@ if [ -f "$LIST_FILE" ]; then
             clear
             echo -e "\n  Loading package list..."
 
-            # FZF 依然需要读取原始文件来显示描述，所以这里还是用 grep 读取原始文件
-            # 这里的逻辑保持不变，因为 FZF 的输出解析逻辑已经包含了去重和清洗
             SELECTED_LINES=$(grep -vE "^\s*#|^\s*$" "$LIST_FILE" | \
                 sed -E 's/[[:space:]]+#/\t#/' | \
                 fzf --multi \
@@ -288,10 +281,7 @@ if [ -f "$LIST_FILE" ]; then
             else
                 PACKAGE_ARRAY=()
                 while IFS= read -r line; do
-                    # FZF 输出的是 "AUR:pkgname <tab> # desc"
-                    # 这里我们需要清洗出 pkgname 并去掉前缀
                     raw_pkg=$(echo "$line" | cut -f1 -d$'\t' | xargs)
-                    # [FIX] 去掉可能存在的 AUR: 前缀
                     clean_pkg="${raw_pkg#AUR:}"
                     [ -n "$clean_pkg" ] && PACKAGE_ARRAY+=("$clean_pkg")
                 done <<< "$SELECTED_LINES"
@@ -303,12 +293,11 @@ if [ -f "$LIST_FILE" ]; then
             # -------------------------------------------------------------
             echo "" 
             log "Timeout reached. Auto-confirming ALL packages."
-            # [FIX] 直接使用我们在开头清洗好的 DEFAULT_LIST
             PACKAGE_ARRAY=("${DEFAULT_LIST[@]}")
         fi
     fi
 
-    # === INSTALLATION PHASE (Common for both paths) ===
+    # === INSTALLATION PHASE ===
     if [ ${#PACKAGE_ARRAY[@]} -gt 0 ]; then
         BATCH_LIST=()
         AUR_LIST=()
@@ -317,7 +306,6 @@ if [ -f "$LIST_FILE" ]; then
 
         for pkg in "${PACKAGE_ARRAY[@]}"; do
             [ "$pkg" == "imagemagic" ] && pkg="imagemagick"
-            # Basic classification logic
             if [[ "$pkg" == "AUR:"* ]]; then
                 clean_pkg="${pkg#AUR:}"
                 AUR_LIST+=("$clean_pkg")
@@ -403,17 +391,60 @@ else
 fi
 
 if [ -d "$TEMP_DIR/dotfiles" ]; then
+    # ==============================================================================
+    # 1. PRE-PROCESS: Handle Exclusions & Cleanups (BEFORE Copying)
+    # ==============================================================================
+    
+    # 1.1 Remove bookmarks for non-shorin users
     UID1000_USER=$(id -nu 1000 2>/dev/null)
     if [ "$UID1000_USER" != "shorin" ]; then
         rm -f "$TEMP_DIR/dotfiles/.config/gtk-3.0/bookmarks"
     fi
+
+    # 1.2 Handle "exclude-dotfiles.txt"
+    # Only run exclusion for non-shorin users
+    if [ "$TARGET_USER" != "shorin" ]; then
+        EXCLUDE_FILE="$PARENT_DIR/exclude-dotfiles.txt"
+        
+        if [ -f "$EXCLUDE_FILE" ]; then
+            log "Processing exclusion list (cleaning temp source)..."
+            mapfile -t EXCLUDES < <(grep -vE "^\s*#|^\s*$" "$EXCLUDE_FILE" | tr -d '\r')
+            
+            for item in "${EXCLUDES[@]}"; do
+                item=$(echo "$item" | xargs)
+                [ -z "$item" ] && continue
+                
+                # Delete from the TEMP directory, not HOME
+                RM_PATH="$TEMP_DIR/dotfiles/.config/$item"
+                
+                if [ -e "$RM_PATH" ]; then
+                    log "Excluding: $item"
+                    rm -rf "$RM_PATH"
+                fi
+            done
+        else
+            log "No exclusion file found ($EXCLUDE_FILE), skipping."
+        fi
+        
+        # 1.3 Pre-clean output.kdl (Remove from source so it is not copied)
+        rm -f "$TEMP_DIR/dotfiles/.config/niri/output.kdl"
+    fi
+
+    # ==============================================================================
+    # 2. APPLY: Backup & Copy
+    # ==============================================================================
 
     BACKUP_NAME="config_backup_$(date +%s).tar.gz"
     log "Backing up..."
     exe runuser -u "$TARGET_USER" -- tar -czf "$HOME_DIR/$BACKUP_NAME" -C "$HOME_DIR" .config
     
     log "Applying..."
+    # Copy clean files
     exe runuser -u "$TARGET_USER" -- cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
+
+    # ==============================================================================
+    # 3. POST-PROCESS: Fix Permissions & Symlinks
+    # ==============================================================================
 
     log "Fixing GTK 4.0 symlinks..."
     GTK4_CONF="$HOME_DIR/.config/gtk-4.0"
@@ -432,21 +463,6 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
     fi
 
     success "Applied."
-    
-    if [ "$TARGET_USER" != "shorin" ]; then
-        log "Cleaning output.kdl..."
-        exe runuser -u "$TARGET_USER" -- truncate -s 0 "$HOME_DIR/.config/niri/output.kdl"
-        EXCLUDE_FILE="$PARENT_DIR/exclude-dotfiles.txt"
-        if [ -f "$EXCLUDE_FILE" ]; then
-            mapfile -t EXCLUDES < <(grep -vE "^\s*#|^\s*$" "$EXCLUDE_FILE" | tr -d '\r')
-            for item in "${EXCLUDES[@]}"; do
-                item=$(echo "$item" | xargs)
-                [ -z "$item" ] && continue
-                RM_PATH="$HOME_DIR/.config/$item"
-                if [ -d "$RM_PATH" ]; then exe rm -rf "$RM_PATH"; fi
-            done
-        fi
-    fi
 else
     warn "Dotfiles missing."
 fi
@@ -468,20 +484,17 @@ rm -rf "$TEMP_DIR"
 # ==============================================================================
 section "Step 7/9" "Hardware"
 
-# 1. DDCutil 配置 (如果存在 ddcutil 或 ddcutil-service)
-# ddcutil 需要用户在 i2c 组才能通过硬件控制显示器亮度
+# 1. DDCutil configuration
 if pacman -Q ddcutil-service &>/dev/null || pacman -Q ddcutil &>/dev/null; then
     log "Detected ddcutil/ddcutil-service. Configuring i2c group..."
     gpasswd -a "$TARGET_USER" i2c
     
-    # 可选：为了立即生效，有时需要加载 i2c-dev 模块
     if ! lsmod | grep -q i2c_dev; then
         echo "i2c-dev" > /etc/modules-load.d/i2c-dev.conf
     fi
 fi
 
-# 2. SwayOSD 配置 (如果存在 swayosd)
-# 这是一个独立组件，不应该依赖 ddcutil 的检测结果
+# 2. SwayOSD configuration
 if pacman -Q swayosd &>/dev/null; then
     log "Detected swayosd. Enabling backend service..."
     systemctl enable --now swayosd-libinput-backend.service > /dev/null 2>&1
