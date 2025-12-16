@@ -1,4 +1,5 @@
 # --- Core Applications ---
+neovim                                   # Advanced version of vim 
 imv                                      # Image Viewer for Wayland
 fish                                     # Friendly Interactive Shell
 
