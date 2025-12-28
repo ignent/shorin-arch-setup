@@ -21,3 +21,9 @@
         ```
         sudo pacman -Syu git && git clone https://github.com/SHORiN-KiWATA/shorin-arch-setup.git && cd shorin-arch-setup && sudo bash install.sh
         ```
+
+## 更新计划
+
+1. 增加可选安装kvm虚拟机
+
+2. 可选安装和配置wine
