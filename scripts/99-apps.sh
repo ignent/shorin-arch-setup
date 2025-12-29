@@ -354,6 +354,7 @@ if pacman -Qi wine &>/dev/null; then
   else
     warn "Resources font directory not found at: $FONT_SRC"
   fi
+fi
 
 # --- Steam Locale Fix ---
 STEAM_desktop_modified=false
