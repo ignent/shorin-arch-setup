@@ -99,35 +99,25 @@ section "Safety Net" "Creating Initial Snapshots"
 
 # Snapshot Root
 if snapper list-configs | grep -q "^root "; then
-    # Check if the specific snapshot already exists
-    if snapper -c root list | grep -q "Before Shorin Setup"; then
-        log "Root snapshot 'Before Shorin Setup' already exists. Skipping creation."
+    log "Creating Root snapshot..."
+    if exe snapper -c root create --description "Before Shorin Setup" --cleanup-algorithm number; then
+        success "Root snapshot created."
     else
-        log "Creating Root snapshot..."
-        if exe snapper -c root create --description "Before Shorin Setup" --cleanup-algorithm number; then
-            success "Root snapshot created."
-        else
-            error "Failed to create Root snapshot."
-            warn "Cannot proceed without a safety snapshot. Aborting."
-            exit 1
-        fi
+        error "Failed to create Root snapshot."
+        warn "Cannot proceed without a safety snapshot. Aborting."
+        exit 1
     fi
 fi
 
 # Snapshot Home
 if snapper list-configs | grep -q "^home "; then
-    # Check if the specific snapshot already exists
-    if snapper -c home list | grep -q "Before Shorin Setup"; then
-        log "Home snapshot 'Before Shorin Setup' already exists. Skipping creation."
+    log "Creating Home snapshot..."
+    if exe snapper -c home create --description "Before Shorin Setup" --cleanup-algorithm number; then
+        success "Home snapshot created."
     else
-        log "Creating Home snapshot..."
-        if exe snapper -c home create --description "Before Shorin Setup" --cleanup-algorithm number; then
-            success "Home snapshot created."
-        else
-            error "Failed to create Home snapshot."
-            # This is less critical than root, but should still be a failure based on previous logic.
-            exit 1
-        fi
+        error "Failed to create Home snapshot."
+        # This is less critical than root, but should still be a failure.
+        exit 1
     fi
 fi
 
