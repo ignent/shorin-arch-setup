@@ -473,7 +473,7 @@ if command -v firefox &>/dev/null; then
         as_user timeout 5s firefox --headless >/dev/null 2>&1 || true
         
         # 确保进程已完全终止
-        pkill -u "$TARGET_USER" firefox 2>/dev/null
+        pkill firefox 2>/dev/null
         sleep 3
 
         # 寻找生成的 Profile 目录
@@ -510,7 +510,7 @@ if command -v firefox &>/dev/null; then
             
             log "Closing Firefox..."
             # 杀掉目标用户的 firefox 进程，确保配置写入 prefs.js
-            pkill -u "$TARGET_USER" firefox
+            pkill firefox
             wait 2>/dev/null
             
             log "Cleaning up injection..."
