@@ -438,10 +438,10 @@ if command -v firefox &>/dev/null; then
         
         log "Initializing Firefox Profile..."
         # 1. 启动 Headless Firefox 以生成配置文件夹 (User Mode)
-        as_user LANG=zh_CN.UTF-8 firefox --headless >/dev/null 2>&1 &
+        as_user env LANG=zh_CN.UTF-8 firefox --headless >/dev/null 2>&1 &
         sleep 3
         # 确保进程已完全终止
-        pkill firefox || true
+        pkill firefox
         sleep 3
 
         # 寻找生成的 Profile 目录
@@ -469,12 +469,12 @@ if command -v firefox &>/dev/null; then
             as_user bash -c "echo 'user_pref(\"browser.sessionstore.resume_from_crash\", false);' >> '$USER_JS'"
             log "Applying settings (Headless Startup)..."
             # 4. 再次启动 Headless Firefox 以应用配置
-            as_user LANG=zh_CN.UTF-8 firefox --headless >/dev/null 2>&1 &
+            as_user env LANG=zh_CN.UTF-8 firefox --headless >/dev/null 2>&1 &
             log "Waiting for initialization (5s)..."
             sleep 5
             log "Closing Firefox..."
             # 杀掉目标用户的 firefox 进程，确保配置写入 prefs.js
-            pkill firefox || true
+            pkill firefox
             sleep 3
 
             log "fix firefox maximize issue"
