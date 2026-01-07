@@ -215,15 +215,12 @@ if [ -f "$DESKTOP_FILE" ]; then
   fi
 fi
 
-# ==============================================================================
-# STEP 4: temp sudo file
-# ==============================================================================
 section "Step 3/9" "Temp sudo file"
 
 SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_temp"
 echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" >"$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
-
+log "Temp sudo file created..."
 # ==============================================================================
 # STEP 5: Dependencies (RESTORED FZF)
 # ==============================================================================
