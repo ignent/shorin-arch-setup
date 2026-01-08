@@ -64,29 +64,24 @@ if curl -fsSL "$DMS_URL" -o "$INSTALLER_SCRIPT"; then
         warn "DMS installer returned an error code. You may need to install it manually."
     fi
     
+    runuser -u "$TARGET_USER" -- bash -c "cd ~ && systemctl --user enable dms"
     # 清理
     rm -f "$INSTALLER_SCRIPT"
 
-else
-    warn "Failed to download DMS installer script from $DMS_URL."
-fi
+    SVC_DIR="$HOME_DIR/.config/systemd/user"
+    SVC_FILE="$SVC_DIR/niri-autostart.service"
+    LINK="$SVC_DIR/default.target.wants/niri-autostart.service"
 
-#auto login 
+    if [ "$SKIP_AUTOLOGIN" = true ]; then
+        log "Auto-login skipped."
+        as_user rm -f "$LINK" "$SVC_FILE"
+    else
+        log "Configuring TTY Auto-login..."
+        mkdir -p "/etc/systemd/system/getty@tty1.service.d"
+        echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty --noreset --noclear --autologin $TARGET_USER - \${TERM}" >"/etc/systemd/system/getty@tty1.service.d/autologin.conf"
 
-SVC_DIR="$HOME_DIR/.config/systemd/user"
-SVC_FILE="$SVC_DIR/niri-autostart.service"
-LINK="$SVC_DIR/default.target.wants/niri-autostart.service"
-
-if [ "$SKIP_AUTOLOGIN" = true ]; then
-    log "Auto-login skipped."
-    as_user rm -f "$LINK" "$SVC_FILE"
-else
-    log "Configuring TTY Auto-login..."
-    mkdir -p "/etc/systemd/system/getty@tty1.service.d"
-    echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty --noreset --noclear --autologin $TARGET_USER - \${TERM}" >"/etc/systemd/system/getty@tty1.service.d/autologin.conf"
-
-    as_user mkdir -p "$(dirname "$LINK")"
-    cat <<EOT >"$SVC_FILE"
+        as_user mkdir -p "$(dirname "$LINK")"
+        cat <<EOT >"$SVC_FILE"
 [Unit]
 Description=Niri Session Autostart
 After=graphical-session-pre.target
@@ -96,10 +91,18 @@ Restart=on-failure
 [Install]
 WantedBy=default.target
 EOT
-    as_user ln -sf "../niri-autostart.service" "$LINK"
-    chown -R "$TARGET_USER" "$SVC_DIR"
-    success "Enabled."
+        as_user ln -sf "../niri-autostart.service" "$LINK"
+        chown -R "$TARGET_USER" "$SVC_DIR"
+        success "Enabled."
+    fi
+
+
+else
+    warn "Failed to download DMS installer script from $DMS_URL."
 fi
+
+#auto login 
+
 
 #-------fcitx5--------------
 
