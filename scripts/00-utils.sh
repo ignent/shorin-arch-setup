@@ -144,11 +144,13 @@ select_flathub_mirror() {
     local names=(
         "SJTU (Shanghai Jiao Tong)"
         "USTC (Univ of Sci & Tech of China)"
+        "FlatHub Offical"
     )
     
     local urls=(
         "https://mirror.sjtu.edu.cn/flathub"
         "https://mirrors.ustc.edu.cn/flathub"
+        "https://dl.flathub.org/repo/"
     )
 
     # 2. 动态计算菜单宽度 (基于无颜色的纯文本)
@@ -249,4 +251,8 @@ select_flathub_mirror() {
     else
         error "Failed to update mirror."
     fi
+}
+
+as_user() {
+  runuser -u "$TARGET_USER" -- "$@"
 }

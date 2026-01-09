@@ -19,7 +19,7 @@ ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
 
 if [ "$ROOT_FSTYPE" == "btrfs" ]; then
     log "Btrfs filesystem detected."
-    exe pacman -Syu --noconfirm --needed snapper snap-pac btrfs-assistant
+    exe pacman -S --noconfirm --needed snapper snap-pac btrfs-assistant
     success "Snapper tools installed."
 
     log "Initializing Snapper 'root' configuration..."
@@ -32,7 +32,7 @@ if [ "$ROOT_FSTYPE" == "btrfs" ]; then
         if exe snapper -c root create-config /; then
             success "Snapper config created."
             log "Applying retention policy..."
-            exe snapper -c root set-config ALLOW_GROUPS="wheel" TIMELINE_CREATE="yes" TIMELINE_CLEANUP="yes" NUMBER_LIMIT="10" NUMBER_LIMIT_IMPORTANT="5" TIMELINE_LIMIT_HOURLY="5" TIMELINE_LIMIT_DAILY="7" TIMELINE_LIMIT_WEEKLY="0" TIMELINE_LIMIT_MONTHLY="0" TIMELINE_LIMIT_YEARLY="0"
+            exe snapper -c root set-config ALLOW_GROUPS="wheel" TIMELINE_CREATE="no" TIMELINE_CLEANUP="yes" NUMBER_LIMIT="10" NUMBER_LIMIT_IMPORTANT="5" TIMELINE_LIMIT_HOURLY="5" TIMELINE_LIMIT_DAILY="7" TIMELINE_LIMIT_WEEKLY="0" TIMELINE_LIMIT_MONTHLY="0" TIMELINE_LIMIT_YEARLY="0"
             success "Policy applied."
         fi
     else
@@ -76,10 +76,10 @@ fi
 section "Step 2/8" "Audio & Video"
 
 log "Installing firmware..."
-exe pacman -Syu --noconfirm --needed sof-firmware alsa-ucm-conf alsa-firmware
+exe pacman -S --noconfirm --needed sof-firmware alsa-ucm-conf alsa-firmware
 
 log "Installing Pipewire stack..."
-exe pacman -Syu --noconfirm --needed pipewire wireplumber pipewire-pulse pipewire-alsa pipewire-jack pavucontrol
+exe pacman -S --noconfirm --needed pipewire wireplumber pipewire-pulse pipewire-alsa pipewire-jack pavucontrol
 
 exe systemctl --global enable pipewire pipewire-pulse wireplumber
 success "Audio setup complete."
@@ -106,16 +106,9 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 4/8" "Input Method (Fcitx5)"
 
-exe pacman -Syu --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-pinyin-git fcitx5-mozc
+exe pacman -S --noconfirm --needed fcitx5-im fcitx5-rime rime-ice-pinyin-git fcitx5-mozc
 
-log "Configuring Rime defaults..."
-TARGET_DIR="/etc/skel/.local/share/fcitx5/rime"
-exe mkdir -p "$TARGET_DIR"
-cat <<EOT > "$TARGET_DIR/default.custom.yaml"
-patch:
-  __include: rime_ice_suggestion:/
-EOT
-success "Fcitx5 configured."
+success "Fcitx5 installed."
 
 # ------------------------------------------------------------------------------
 # 5. Bluetooth (Smart Detection)
@@ -124,7 +117,7 @@ section "Step 5/8" "Bluetooth"
 
 # Ensure detection tools are present
 log "Detecting Bluetooth hardware..."
-exe pacman -Syu --noconfirm --needed usbutils pciutils
+exe pacman -S --noconfirm --needed usbutils pciutils
 
 BT_FOUND=false
 
@@ -137,14 +130,9 @@ if rfkill list bluetooth >/dev/null 2>&1; then BT_FOUND=true; fi
 
 if [ "$BT_FOUND" = true ]; then
     info_kv "Hardware" "Detected"
-    
-    if [ "$DESKTOP_ENV" == "kde" ]; then
-        log "Desktop is KDE: Installing Bluez only..."
-        exe pacman -Syu --noconfirm --needed bluez
-    else
-        log "Desktop is Niri: Installing Bluez + Bluetui..."
-        exe pacman -Syu --noconfirm --needed bluez bluetui
-    fi
+
+    log "Installing Bluez "
+    exe pacman -S --noconfirm --needed bluez
 
     exe systemctl enable --now bluetooth
     success "Bluetooth service enabled."
@@ -158,7 +146,7 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 6/8" "Power Management"
 
-exe pacman -Syu --noconfirm --needed power-profiles-daemon
+exe pacman -S --noconfirm --needed power-profiles-daemon
 exe systemctl enable --now power-profiles-daemon
 success "Power profiles daemon enabled."
 
@@ -167,15 +155,27 @@ success "Power profiles daemon enabled."
 # ------------------------------------------------------------------------------
 section "Step 7/8" "Fastfetch"
 
-exe pacman -Syu --noconfirm --needed fastfetch
+exe pacman -S --noconfirm --needed fastfetch
 success "Fastfetch installed."
 
-# ------------------------------------------------------------------------------
-# 8. XDG Dirs
-# ------------------------------------------------------------------------------
-section "Step 8/8" "User Directories"
-
-exe pacman -Syu --noconfirm --needed xdg-user-dirs
-success "xdg-user-dirs installed."
-
 log "Module 02 completed."
+
+# ------------------------------------------------------------------------------
+# 9. flatpak
+# ------------------------------------------------------------------------------
+
+exe pacman -S --noconfirm --needed flatpak
+exe flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+CURRENT_TZ=$(readlink -f /etc/localtime)
+IS_CN_ENV=false
+if [[ "$CURRENT_TZ" == *"Shanghai"* ]] || [ "$CN_MIRROR" == "1" ] || [ "$DEBUG" == "1" ]; then
+  IS_CN_ENV=true
+  info_kv "Region" "China Optimization Active"
+fi
+
+if [ "$IS_CN_ENV" = true ]; then
+  select_flathub_mirror
+else
+  log "Using Global Sources."
+fi

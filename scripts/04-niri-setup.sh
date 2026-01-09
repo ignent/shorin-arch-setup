@@ -12,18 +12,10 @@ DEBUG=${DEBUG:-0}
 CN_MIRROR=${CN_MIRROR:-0}
 UNDO_SCRIPT="$SCRIPT_DIR/niri-undochange.sh"
 
-# --- [CONFIGURATION] ---
-# LazyVim 硬性依赖列表
-LAZYVIM_DEPS=("neovim" "ripgrep" "fd" "ttf-jetbrains-mono-nerd" "git")
-
 check_root
 
 # --- [HELPER FUNCTIONS] ---
 
-# 1. 简化的用户执行封装
-as_user() {
-  runuser -u "$TARGET_USER" -- "$@"
-}
 
 # 2. Critical Failure Handler (The "Big Red Box")
 critical_failure_handler() {
@@ -91,7 +83,7 @@ ensure_package_installed() {
     fi
 
     # Try installation
-    if as_user yay -Syu --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
+    if as_user yay -S --noconfirm --needed --answerdiff=None --answerclean=None "$pkg"; then
       install_success=true
       break
     else
@@ -109,18 +101,7 @@ ensure_package_installed() {
   fi
 }
 
-# hide .desktop
-hide_desktop_file() {
 
-  local file="$1"
-
-  if [[ -f "$file" ]] && ! grep -q "^NoDisplay=true$" "$file"; then
-
-    echo "NoDisplay=true" >> "$file"
-
-  fi
-
-}
 
 
 # Ensure whiptail
@@ -134,19 +115,6 @@ section "Phase 4" "Niri Desktop Environment"
 # ==============================================================================
 # STEP 0: Safety Checkpoint
 # ==============================================================================
-
-create_checkpoint() {
-  local marker="Before Niri Setup"
-  if snapper -c root list | grep -q "$marker"; then
-    log "Checkpoint '$marker' already exists."
-  else
-    log "Creating safety checkpoint..."
-    snapper -c root create -d "$marker"
-    snapper -c home list &>/dev/null && snapper -c home create -d "$marker"
-    success "Checkpoint created."
-  fi
-}
-create_checkpoint
 
 # Enable Trap
 trap 'critical_failure_handler "Script Error at Line $LINENO"' ERR
@@ -184,7 +152,7 @@ fi
 # ==============================================================================
 section "Step 1/9" "Core Components"
 PKGS="niri xdg-desktop-portal-gnome fuzzel kitty firefox libnotify mako polkit-gnome"
-exe pacman -Syu --noconfirm --needed $PKGS
+exe pacman -S --noconfirm --needed $PKGS
 
 log "Configuring Firefox Policies..."
 POL_DIR="/etc/firefox/policies"
@@ -215,30 +183,12 @@ if [ -f "$DESKTOP_FILE" ]; then
   fi
 fi
 
-# ==============================================================================
-# STEP 4: Network Optimization
-# ==============================================================================
-section "Step 3/9" "Network Optimization"
-exe pacman -S --noconfirm --needed flatpak gnome-software
-exe flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-CURRENT_TZ=$(readlink -f /etc/localtime)
-IS_CN_ENV=false
-if [[ "$CURRENT_TZ" == *"Shanghai"* ]] || [ "$CN_MIRROR" == "1" ] || [ "$DEBUG" == "1" ]; then
-  IS_CN_ENV=true
-  info_kv "Region" "China Optimization Active"
-fi
-
-if [ "$IS_CN_ENV" = true ]; then
-  select_flathub_mirror
-else
-  log "Using Global Sources."
-fi
+section "Step 3/9" "Temp sudo file"
 
 SUDO_TEMP_FILE="/etc/sudoers.d/99_shorin_installer_temp"
 echo "$TARGET_USER ALL=(ALL) NOPASSWD: ALL" >"$SUDO_TEMP_FILE"
 chmod 440 "$SUDO_TEMP_FILE"
-
+log "Temp sudo file created..."
 # ==============================================================================
 # STEP 5: Dependencies (RESTORED FZF)
 # ==============================================================================
@@ -307,22 +257,6 @@ if [ -f "$LIST_FILE" ]; then
     fi
   fi
 
-  # --- Pre-Installation Filter (LazyVim Interceptor) ---
-  INSTALL_LAZYVIM=false
-  FINAL_ARRAY=()
-  if [ ${#PACKAGE_ARRAY[@]} -gt 0 ]; then
-    for pkg in "${PACKAGE_ARRAY[@]}"; do
-      if [ "${pkg,,}" == "lazyvim" ]; then
-        INSTALL_LAZYVIM=true
-        FINAL_ARRAY+=("${LAZYVIM_DEPS[@]}")
-        info_kv "Config" "LazyVim detected" "Setup deferred to post-dotfiles"
-      else
-        FINAL_ARRAY+=("$pkg")
-      fi
-    done
-    PACKAGE_ARRAY=("${FINAL_ARRAY[@]}")
-  fi
-
   # --- Installation Loop ---
   if [ ${#PACKAGE_ARRAY[@]} -gt 0 ]; then
     BATCH_LIST=()
@@ -366,7 +300,7 @@ else
 fi
 
 # ==============================================================================
-# STEP 6: Dotfiles & LazyVim
+# STEP 6: Dotfiles
 # ==============================================================================
 section "Step 5/9" "Deploying Dotfiles"
 
@@ -402,10 +336,21 @@ if [ -d "$TEMP_DIR/dotfiles" ]; then
   as_user tar -czf "$HOME_DIR/config_backup_$(date +%s).tar.gz" -C "$HOME_DIR" .config
   as_user cp -rf "$TEMP_DIR/dotfiles/." "$HOME_DIR/"
 
-  # Post-Process
+# Post-Process
   if [ "$TARGET_USER" != "shorin" ]; then
     as_user truncate -s 0 "$HOME_DIR/.config/niri/output.kdl" 2>/dev/null
-    rm -f "$HOME_DIR/.config/gtk-3.0/bookmarks"
+    
+    # 定义书签文件路径
+    BOOKMARKS_FILE="$HOME_DIR/.config/gtk-3.0/bookmarks"
+    
+    # 如果文件存在，则执行替换操作
+    if [ -f "$BOOKMARKS_FILE" ]; then
+        # 使用 sed 将文件中的 "shorin" 全部替换为当前目标用户名
+        # 使用 as_user 确保文件权限不会变成 root
+        as_user sed -i "s/shorin/$TARGET_USER/g" "$BOOKMARKS_FILE"
+        log "Updated GTK bookmarks path from 'shorin' to '$TARGET_USER'."
+    fi
+    # --- 修改结束 ---
   fi
 
   # Fix Symlinks & Permissions
@@ -426,45 +371,17 @@ else
   warn "Dotfiles missing in temp directory."
 fi
 
-# --- Post-Dotfiles Configuration: LazyVim ---
-if [ "$INSTALL_LAZYVIM" = true ]; then
-  section "Config" "Applying LazyVim Overrides"
-  NVIM_CFG="$HOME_DIR/.config/nvim"
 
-  if [ -d "$NVIM_CFG" ]; then
-    BACKUP_PATH="$HOME_DIR/.config/nvim.old.dotfiles.$(date +%s)"
-    warn "Collision detected. Moving existing nvim config to $BACKUP_PATH"
-    mv "$NVIM_CFG" "$BACKUP_PATH"
-  fi
-
-  log "Cloning LazyVim starter..."
-  if as_user git clone https://github.com/LazyVim/starter "$NVIM_CFG"; then
-    rm -rf "$NVIM_CFG/.git"
-    success "LazyVim installed (Override)."
-  else
-    error "Failed to clone LazyVim."
-  fi
-fi
-
-log "Hiding useless .desktop files"
-hide_desktop_file "/usr/share/applications/avahi-discover.desktop"
-hide_desktop_file "/usr/share/applications/qv4l2.desktop"
-hide_desktop_file "/usr/share/applications/qvidcap.desktop"
-hide_desktop_file "/usr/share/applications/bssh.desktop"
-hide_desktop_file "/usr/share/applications/org.fcitx.Fcitx5.desktop"
-hide_desktop_file "/usr/share/applications/org.fcitx.fcitx5-migrator.desktop"
-hide_desktop_file "/usr/share/applications/xgps.desktop"
-hide_desktop_file "/usr/share/applications/xgpsspeed.desktop"
-hide_desktop_file "/usr/share/applications/gvim.desktop"
-hide_desktop_file "/usr/share/applications/kbd-layout-viewer5.desktop"
-hide_desktop_file "/usr/share/applications/bvnc.desktop"
 # ==============================================================================
-# STEP 7: Wallpapers
+# STEP 7: Wallpapers & Templates
 # ==============================================================================
 section "Step 6/9" "Wallpapers"
 if [ -d "$TEMP_DIR/wallpapers" ]; then
   as_user mkdir -p "$HOME_DIR/Pictures/Wallpapers"
   as_user cp -rf "$TEMP_DIR/wallpapers/." "$HOME_DIR/Pictures/Wallpapers/"
+  as_user touch "$HOME_DIR/Templates/new"
+  as_user touch "$HOME_DIR/Templates/new.sh"
+  as_user echo "#!/bin/bash" >> "$HOME_DIR/Templates/new.sh"
   success "Installed."
 fi
 rm -rf "$TEMP_DIR"

@@ -80,44 +80,58 @@ show_banner() {
     echo -e "${DIM}   :: Arch Linux Automation Protocol :: v1.1 ::${NC}"
     echo ""
 }
-
+DankMaterialShell
 # --- Desktop Selection Menu ---
 select_desktop() {
     show_banner
-    echo -e "${H_PURPLE}╭──────────────────────────────────────────────────────────────╮${NC}"
-    echo -e "${H_PURPLE}│${NC} ${BOLD}Choose your Desktop Environment:${NC}                             ${H_PURPLE}│${NC}"
-    echo -e "${H_PURPLE}│${NC}                                                              ${H_PURPLE}│${NC}"
-    echo -e "${H_PURPLE}│${NC}  ${H_CYAN}[1]${NC} Niri (Wayland Tiling Compositor)                       ${H_PURPLE}│${NC}"
-    echo -e "${H_PURPLE}│${NC}  ${H_CYAN}[2]${NC} KDE Plasma 6 (Full Desktop Environment)                ${H_PURPLE}│${NC}"
-    echo -e "${H_PURPLE}│${NC}                                                              ${H_PURPLE}│${NC}"
-    echo -e "${H_PURPLE}╰──────────────────────────────────────────────────────────────╯${NC}"
+    
+    # 1. 定义选项 (显示名称|内部ID)
+    local OPTIONS=(
+        "No Desktop |none"
+        "Shorin's Niri |niri"
+        "Shorin's KDE Plasma |kde"
+        "Quickshell--DankMaterialShell (dms) |dms"
+    )
+    
+    # 2. 绘制菜单 (半开放式风格)
+    # 定义一条足够长的横线，或者固定长度
+    local HR="──────────────────────────────────────────────────"
+    
+    echo -e "${H_PURPLE}╭${HR}${NC}"
+    echo -e "${H_PURPLE}│${NC} ${BOLD}Choose your Desktop Environment:${NC}"
+    echo -e "${H_PURPLE}│${NC}" # 空行分隔
+
+    local idx=1
+    for opt in "${OPTIONS[@]}"; do
+        local name="${opt%%|*}"
+        # 直接打印，无需计算填充空格
+        echo -e "${H_PURPLE}│${NC}  ${H_CYAN}[${idx}]${NC} ${name}"
+        ((idx++))
+    done
+    echo -e "${H_PURPLE}│${NC}" # 空行分隔
+    echo -e "${H_PURPLE}╰${HR}${NC}"
     echo ""
     
+    # 3. 输入处理
     echo -e "   ${DIM}Waiting for input (Timeout: 2 mins)...${NC}"
-    read -t 120 -p "$(echo -e "   ${H_YELLOW}Select [1/2]: ${NC}")" dt_choice
+    read -t 120 -p "$(echo -e "   ${H_YELLOW}Select [1-${#OPTIONS[@]}]: ${NC}")" choice
     
-    if [ -z "$dt_choice" ]; then
+    if [ -z "$choice" ]; then
         echo -e "\n${H_RED}Timeout or no selection.${NC}"
         exit 1
     fi
     
-    case "$dt_choice" in
-        1)
-            export DESKTOP_ENV="niri"
-            log "Selected: Niri"
-            ;;
-        2)
-            export DESKTOP_ENV="kde"
-            log "Selected: KDE Plasma"
-            ;;
-        *)
-            error "Invalid selection."
-            exit 1
-            ;;
-    esac
-    sleep 1
+    # 4. 验证并提取 ID
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#OPTIONS[@]}" ]; then
+        local selected_opt="${OPTIONS[$((choice-1))]}"
+        export DESKTOP_ENV="${selected_opt##*|}" # 提取 ID
+        log "Selected: ${selected_opt%%|*}"
+    else
+        error "Invalid selection."
+        exit 1
+    fi
+    sleep 0.5
 }
-
 sys_dashboard() {
     echo -e "${H_BLUE}╔════ SYSTEM DIAGNOSTICS ══════════════════════════════╗${NC}"
     echo -e "${H_BLUE}║${NC} ${BOLD}Kernel${NC}   : $(uname -r)"
@@ -154,13 +168,30 @@ BASE_MODULES=(
     "02-musthave.sh"
     "02a-dualboot-fix.sh"
     "03-user.sh"
+    "03b-gpu-driver.sh"
+    "03c-snapshot-before-desktop.sh"
 )
 
-if [ "$DESKTOP_ENV" == "niri" ]; then
-    BASE_MODULES+=("04-niri-setup.sh")
-elif [ "$DESKTOP_ENV" == "kde" ]; then
-    BASE_MODULES+=("06-kdeplasma-setup.sh")
-fi
+case "$DESKTOP_ENV" in
+    niri)
+        BASE_MODULES+=("04-niri-setup.sh")
+        ;;
+    kde)
+        BASE_MODULES+=("04b-kdeplasma-setup.sh")
+        ;;
+    dms)
+        BASE_MODULES+=("04c-dms-quickshell.sh")
+        ;;
+    gnome)
+        BASE_MODULES+=("04d-gnome.sh")
+        ;;
+    none)
+        log "Skipping Desktop Environment installation."
+        ;;
+    *)
+        warn "Unknown selection, skipping desktop setup."
+        ;;
+esac
 
 BASE_MODULES+=("07-grub-theme.sh" "99-apps.sh")
 MODULES=("${BASE_MODULES[@]}")
@@ -293,24 +324,46 @@ section "Completion" "System Cleanup"
 # --- 1. Snapshot Cleanup Logic ---
 clean_intermediate_snapshots() {
     local config_name="$1"
-    local marker_name="Before Shorin Setup"
+    local start_marker="Before Shorin Setup"
     
+    local KEEP_MARKERS=(
+        "Before Desktop Environments"
+        "Before Niri Setup"
+    )
+
     if ! snapper -c "$config_name" list &>/dev/null; then
         return
     fi
 
     log "Scanning junk snapshots in: $config_name..."
 
+    # 1. 获取起始点 ID
     local start_id
-    start_id=$(snapper -c "$config_name" list --columns number,description | grep "$marker_name" | awk '{print $1}' | tail -n 1)
+    start_id=$(snapper -c "$config_name" list --columns number,description | grep -F "$start_marker" | awk '{print $1}' | tail -n 1)
 
     if [ -z "$start_id" ]; then
-        warn "Marker '$marker_name' not found in '$config_name'. Skipping."
+        warn "Marker '$start_marker' not found in '$config_name'. Skipping cleanup."
         return
     fi
 
+    # 2. 解析白名单 (IDS_TO_KEEP)
+    local IDS_TO_KEEP=()
+    for marker in "${KEEP_MARKERS[@]}"; do
+        local found_id
+        # [修正] 去掉了 grep -E "...$"，防止 Snapper 输出表格尾部的填充空格导致匹配失败
+        # grep -F 已经足够精确，且 tail -n 1 保证取最新的一个
+        found_id=$(snapper -c "$config_name" list --columns number,description | grep -F "$marker" | awk '{print $1}' | tail -n 1)
+        
+        if [ -n "$found_id" ]; then
+            IDS_TO_KEEP+=("$found_id")
+            log "Found protected snapshot: '$marker' (ID: $found_id)"
+        fi
+    done
+
     local snapshots_to_delete=()
-    while read -r line; do
+    
+    # 3. 扫描并筛选需要删除的快照
+    while IFS= read -r line; do
         local id
         local type
         
@@ -319,6 +372,22 @@ clean_intermediate_snapshots() {
 
         if [[ "$id" =~ ^[0-9]+$ ]]; then
             if [ "$id" -gt "$start_id" ]; then
+                
+                # --- 白名单检查 (原生循环比对，最稳健) ---
+                local skip=false
+                for keep in "${IDS_TO_KEEP[@]}"; do
+                    if [[ "$id" == "$keep" ]]; then
+                        skip=true
+                        break
+                    fi
+                done
+                
+                if [ "$skip" = true ]; then
+                    continue
+                fi
+                # ------------------------------------
+
+                # 仅删除 pre/post/single 类型的快照
                 if [[ "$type" == "pre" || "$type" == "post" || "$type" == "single" ]]; then
                     snapshots_to_delete+=("$id")
                 fi
@@ -326,8 +395,9 @@ clean_intermediate_snapshots() {
         fi
     done < <(snapper -c "$config_name" list --columns number,type)
 
+    # 4. 执行删除
     if [ ${#snapshots_to_delete[@]} -gt 0 ]; then
-        log "Deleting ${#snapshots_to_delete[@]} snapshots in '$config_name'..."
+        log "Deleting ${#snapshots_to_delete[@]} junk snapshots in '$config_name'..."
         if exe snapper -c "$config_name" delete "${snapshots_to_delete[@]}"; then
             success "Cleaned $config_name."
         fi
@@ -335,7 +405,6 @@ clean_intermediate_snapshots() {
         log "No junk snapshots found in '$config_name'."
     fi
 }
-
 # --- 2. Execute Cleanup ---
 log "Cleaning Pacman/Yay cache..."
 exe pacman -Sc --noconfirm
