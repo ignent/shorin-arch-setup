@@ -113,7 +113,7 @@ REAL_HOME=$(getent passwd "$MY_USERNAME" | cut -d: -f6)
 
 # 2. 强制指定 HOME 环境变量运行更新命令
 # 注意：这里加了 --force 确保即使配置文件已存在也能强制刷新目录结构
-if exe runuser -u "$MY_USERNAME" -- env HOME="$REAL_HOME" xdg-user-dirs-update --force; then
+if exe runuser -u "$MY_USERNAME" -- env LANG=en_US.UTF-8 HOME="$REAL_HOME" xdg-user-dirs-update --force; then
     success "Directories created in $REAL_HOME."
 else
     warn "Failed to generate directories."
