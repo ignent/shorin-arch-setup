@@ -50,7 +50,7 @@ if echo "$GPU_INFO" | grep -q -i "Intel"; then
     HAS_INTEL=true
     info_kv "Vendor" "Intel Detected"
     # 追加 Intel 基础包 (保证能亮机，能跑基础桌面)
-    PKGS+=("mesa" "vulkan-intel" "lib32-mesa" "lib32-vulkan-intel" "gst-plugin-va" "linux-firmware-intel")
+    PKGS+=("mesa" "vulkan-intel" "lib32-mesa" "lib32-vulkan-intel" "gst-plugin-va" "linux-firmware-intel" "opencl-mesa" "lib32-opencl-mesa")
 fi
 
 # --- NVIDIA 检测 ---
