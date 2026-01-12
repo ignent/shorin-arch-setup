@@ -30,7 +30,7 @@ log "GPU Info Detected:\n$GPU_INFO"
 HAS_AMD=false
 HAS_INTEL=false
 HAS_NVIDIA=false
-
+GPU_NUMBER=0
 # 待安装包数组
 PKGS=("libva-utils")
 # ==============================================================================
@@ -60,6 +60,18 @@ if echo "$GPU_INFO" | grep -q -i "NVIDIA"; then
     # 追加 NVIDIA 基础工具包
 fi
 
+# --- 多显卡检测 ---
+GPU_COUNT=$(echo "$GPU_INFO" | grep -c .)
+
+if [ "$GPU_COUNT" -ge 2 ]; then
+    info_kv "GPU Layout" "Dual/Multi-GPU Detected (Count: $GPU_COUNT)"
+    # 安装 vulkan-mesa-layers 以支持 vk-device-select
+    PKGS+=("vulkan-mesa-layers" "lib32-vulkan-mesa-layers")
+
+    if [[ $HAS_NVIDIA == true ]]; then 
+    PKGS+=("nvidia-prime" "switcheroo-control")
+    fi
+fi
 # ==============================================================================
 # 3. Conditional 包判断 
 # ==============================================================================
@@ -175,9 +187,9 @@ if [ ${#PKGS[@]} -gt 0 ]; then
     # 执行安装
     exe runuser -u "$TARGET_USER" -- yay -S --noconfirm --needed --answerdiff=None --answerclean=None "${UNIQUE_PKGS[@]}"
     
-    log "Enabling nvidia-powerd (if supported)..."
+    log "Enabling services (if supported)..."
     systemctl enable --now nvidia-powerd &>/dev/null || true
-    
+    systemctl enable switcheroo-control.service &>/dev/null || true
     success "GPU Drivers processed successfully."
 else
     warn "No GPU drivers matched or needed."
