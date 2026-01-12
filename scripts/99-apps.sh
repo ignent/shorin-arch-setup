@@ -318,12 +318,13 @@ if pacman -Qi virt-manager &>/dev/null; then
         if [[ $(readlink -f /etc/localtime) == *"Shanghai"* ]]; then
             # 中国：只加国内 DNS
             log "Region: China. Prepending DNS..."
-            sed -i '1i nameserver 223.5.5.5' /etc/resolv.conf
-            sed -i '1i nameserver 119.29.29.29' /etc/resolv.conf
+            echo "nameserver 223.5.5.5" >> /etc/resolv.conf
+            echo "nameserver 119.29.29.29" >> /etc/resolv.conf
         else
             # 非中国：加 Google DNS
             log "Region: Global. Appending Google DNS..."
             echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+            echo "nameserver 1.1.1.1" >> /etc/resolv.conf
         fi
     fi
   success "Virtualization (KVM) configured."
@@ -452,7 +453,8 @@ hide_desktop_file "/usr/share/applications/xgpsspeed.desktop"
 hide_desktop_file "/usr/share/applications/gvim.desktop"
 hide_desktop_file "/usr/share/applications/kbd-layout-viewer5.desktop"
 hide_desktop_file "/usr/share/applications/bvnc.desktop"
-
+hide_desktop_file "/usr/share/applications/yazi.desktop"
+hide_desktop_file "/usr/share/applications/btop.desktop"
 # --- Post-Dotfiles Configuration: Firefox ---
 # Define resource path (shorin-arch-setup/resources/firefox/user.js.snippet)
 FF_SNIPPET="$PARENT_DIR/resources/firefox/user.js.snippet"
