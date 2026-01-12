@@ -35,17 +35,5 @@
 
 - 增加quickshell可选
 
-    - dms
-
-        1. 输入法
-
-        2. 中文界面
-
-        3. 编辑截图
-
-        4
-
-- 简短安装命令
-
-- gnome自动配置
+    - dms post config
 
