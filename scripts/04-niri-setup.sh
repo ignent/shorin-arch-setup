@@ -114,15 +114,6 @@ ensure_package_installed() {
   fi
 }
 
-
-
-
-# Ensure whiptail
-if ! command -v whiptail &>/dev/null; then
-  log "Installing dependency: whiptail..."
-  pacman -S --noconfirm libnewt >/dev/null 2>&1
-fi
-
 section "Phase 4" "Niri Desktop Environment"
 
 # ==============================================================================
