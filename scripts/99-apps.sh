@@ -272,7 +272,7 @@ fi
 section "Post-Install" "System & App Tweaks"
 
 # --- [NEW] Virtualization Configuration (Virt-Manager) ---
-if pacman -Qi virt-manager &>/dev/null; then
+if pacman -Qi virt-manager &>/dev/null && ! systemd-detect-virt -q; then
   info_kv "Config" "Virt-Manager detected"
   
   # 1. 安装完整依赖
