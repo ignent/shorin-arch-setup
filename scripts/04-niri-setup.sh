@@ -442,16 +442,12 @@ if [ -d "$DOTFILES_REPO/dotfiles" ]; then
   link_recursive "$DOTFILES_REPO/dotfiles" "$HOME_DIR" "$EXCLUDE_LIST"
 
   # --- Post-Process (防止污染 git 的修正) ---
+  OUTPUT_EXAMPLE_KDL="$HOME_DIR/.config/niri/output-example.kdl"
+  OUTPUT_KDL="$HOME_DIR/.config/niri/output.kdl"
   if [ "$TARGET_USER" != "shorin" ]; then
-    # 修复 output.kdl (转为实体文件)
-    OUTPUT_KDL="$HOME_DIR/.config/niri/output.kdl"
-    if [ -L "$OUTPUT_KDL" ]; then
-        as_user rm "$OUTPUT_KDL"
-        as_user touch "$OUTPUT_KDL"
-    else
-        as_user truncate -s 0 "$OUTPUT_KDL" 2>/dev/null
-    fi
-    
+
+    as_user touch $OUTPUT_KDL
+
     # 修复 Bookmarks (转为实体文件并修改)
     BOOKMARKS_FILE="$HOME_DIR/.config/gtk-3.0/bookmarks"
     REPO_BOOKMARKS="$DOTFILES_REPO/dotfiles/.config/gtk-3.0/bookmarks"
@@ -461,6 +457,7 @@ if [ -d "$DOTFILES_REPO/dotfiles" ]; then
         as_user sed -i "s/shorin/$TARGET_USER/g" "$BOOKMARKS_FILE"
         log "Updated GTK bookmarks."
     fi
+    as_user cp "$DOTFILES_REPO/dotfiles/.config/niri/output-example.kdl" "$OUTPUT_KDL"
   fi
 
   # GTK Theme Symlinks (Fix internal links)
