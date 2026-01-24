@@ -457,6 +457,8 @@ if [ -d "$DOTFILES_REPO/dotfiles" ]; then
         as_user sed -i "s/shorin/$TARGET_USER/g" "$BOOKMARKS_FILE"
         log "Updated GTK bookmarks."
     fi
+
+  else
     as_user cp "$DOTFILES_REPO/dotfiles/.config/niri/output-example.kdl" "$OUTPUT_KDL"
   fi
 
@@ -489,7 +491,7 @@ section "Step 6/9" "Wallpapers"
 # 更新引用路径
 if [ -d "$DOTFILES_REPO/wallpapers" ]; then
   as_user mkdir -p "$HOME_DIR/Pictures/Wallpapers"
-  as_user cp -rf "$DOTFILES_REPO/wallpapers/." "$HOME_DIR/Pictures/Wallpapers/"
+  as_user mv "$DOTFILES_REPO/wallpapers" "$HOME_DIR/Pictures/Wallpapers"
   
   as_user mkdir -p "$HOME_DIR/Templates"
   as_user touch "$HOME_DIR/Templates/new"
