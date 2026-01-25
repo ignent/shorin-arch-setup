@@ -170,6 +170,8 @@ exe chmod 755 "$POL_DIR" && exe chmod 644 "$POL_DIR/policies.json"
 section "Step 2/9" "File Manager"
 exe pacman -S --noconfirm --needed ffmpegthumbnailer gvfs-smb nautilus-open-any-terminal file-roller gnome-keyring gst-plugins-base gst-plugins-good gst-libav nautilus
 
+exe pacman -S --noconfirm --needed xdg-desktop-portal-gtk thunar tumbler ffmpegthumbnailer poppler-glib gvfs-smb file-roller thunar-archive-plugin gnome-keyring thunar-volman gvfs-mtp gvfs-gphoto2 webp-pixbuf-loader libgsf
+
 if [ ! -f /usr/bin/gnome-terminal ] || [ -L /usr/bin/gnome-terminal ]; then
   exe ln -sf /usr/bin/kitty /usr/bin/gnome-terminal
 fi
