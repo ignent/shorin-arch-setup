@@ -459,7 +459,7 @@ done
 
 # --- 4. Final GRUB Update ---
 log "Regenerating final GRUB configuration..."
-exe grub-mkconfig -o /boot/grub/grub.cfg
+exe env LANG=en_US.UTF-8 grub-mkconfig -o /boot/grub/grub.cfg
 
 # --- Completion ---
 clear
