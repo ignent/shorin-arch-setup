@@ -94,7 +94,7 @@ else
     fi
 fi
 
-# 配置 Sudoers
+# 1. 配置 Sudoers
 log "Configuring sudoers access..."
 if grep -q "^# %wheel ALL=(ALL:ALL) ALL" /etc/sudoers; then
     # 使用 sed 去掉注释
@@ -107,6 +107,20 @@ else
     log "Appending %wheel rule to /etc/sudoers..."
     echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers
     success "Sudo access configured."
+fi
+
+# 2. 配置 Faillock (防止输错密码锁定) [新增部分]
+log "Configuring password lockout policy (faillock)..."
+FAILLOCK_CONF="/etc/security/faillock.conf"
+
+if [ -f "$FAILLOCK_CONF" ]; then
+    # 使用 sed 匹配被注释的(# deny =) 或者未注释的(deny =) 行，统一改为 deny = 0
+    # 正则解释: ^#\? 匹配开头可选的井号; \s* 匹配可选空格
+    exe sed -i 's/^#\?\s*deny\s*=.*/deny = 0/' "$FAILLOCK_CONF"
+    success "Account lockout disabled (deny=0)."
+else
+    # 极少数情况该文件不存在，虽然在 Arch 中默认是有这个文件的
+    warn "File $FAILLOCK_CONF not found. Skipping lockout config."
 fi
 
 # ==============================================================================
