@@ -19,7 +19,7 @@ swww                                     # Efficient wallpaper daemon for Waylan
 
 # --- Status Bar ---
 waybar                                   # Highly customizable Wayland bar
-
+waifu2x-ncnn-vulkan                      # make anime wallpaper more clear
 # --- Screenshots & Recording ---
 grim                                     # Screenshot utility (Grabs images)
 slurp                                    # Region selector (Works with grim)
