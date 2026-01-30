@@ -33,13 +33,13 @@ udftools                                 # Tools for UDF filesystems (DVD/Optica
 xfsprogs                                 # Tools for XFS filesystems
 
 # --- Others ---
-code                                     # vscode
 gnome-font-viewer                        # manage fonts easily
 gnome-calendar                           # calendar
 gnome-clocks                             # clocks
 localsend                                # send files to other devices
 
 # --- AUR Packages ---
+AUR:visual-studio-code-bin               # vscode 
 AUR:linuxqq-appimage                     # Tencent QQ (AppImage)
 AUR:wechat-appimage                      # WeChat (AppImage)
 AUR:typora-free                          # markdown editor
