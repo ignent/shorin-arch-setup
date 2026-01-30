@@ -400,17 +400,17 @@ fi
 # ------------------------------------------------------------------------------
 section "Step 5/5" "Enable Display Manager"
 
-log "Configuring SDDM Theme to Breeze..."
-exe mkdir -p /etc/sddm.conf.d
-cat > /etc/sddm.conf.d/theme.conf <<EOF
-[Theme]
-Current=breeze
-EOF
-log "Theme set to 'breeze'."
+# log "Configuring SDDM Theme to Breeze..."
+# exe mkdir -p /etc/sddm.conf.d
+# cat > /etc/sddm.conf.d/theme.conf <<EOF
+# [Theme]
+# Current=breeze
+# EOF
+# log "Theme set to 'breeze'."
 
-log "Enabling SDDM..."
-exe systemctl enable sddm
-success "SDDM enabled. Will start on reboot."
+log "Enabling PLM..."
+exe systemctl enable plasmalogin
+success "PLM enabled. Will start on reboot."
 
 # ------------------------------------------------------------------------------
 # Cleanup

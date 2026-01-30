@@ -1,3 +1,4 @@
+plasma-login-manager                     # new DM for KDE Plasma
 # --- Shell & Terminal Enhancements ---
 fish                                     # Friendly Interactive Shell
 starship                                 # Cross-shell customizable prompt
