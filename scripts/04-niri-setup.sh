@@ -385,7 +385,7 @@ prepare_repository() {
     
     log "Downloading latest snapshot (Github)..."
     # 修复点 2：同样明确指定 origin main
-    if ! as_user git -C "$DOTFILES_REPO" pull origin "$BRANCH_NAME" --depth 1; then # <--- 修改
+    if ! as_user git -C "$DOTFILES_REPO" pull origin "$BRANCH_NAME" --depth 1 && chown -R $TARGET_USER $DOTFILES_REPO; then # <--- 修改
       critical_failure_handler "Failed to download dotfiles (Sparse+Shallow failed)."
     else 
       as_user git -C "$DOTFILES_REPO" branch --set-upstream-to=origin/main main
