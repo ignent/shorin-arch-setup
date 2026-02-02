@@ -30,10 +30,3 @@
         ```
         sudo pacman -Syu git && git clone https://github.com/SHORiN-KiWATA/shorin-arch-setup.git && cd shorin-arch-setup && sudo bash install.sh
         ```
-
-## 更新计划
-
-- 增加quickshell可选
-
-    - dms post config
-
