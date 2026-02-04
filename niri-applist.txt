@@ -41,12 +41,13 @@ imagemagick                              # Image manipulation tools
 timg                                     # view image in terminal
 pacman-contrib                           # pacman utilus
 bat                                      # better cat
+ffmpegthumbnailer                        # generate thumbnailers
 # --- Hardware & Audio ---
 brightnessctl                            # Device brightness control
 cava                                     # Console-based Audio Visualizer
 bluetui                                  # tui for bluetooth
+
 # --- AUR Packages ---
-AUR:clipse-git                           # clipboard
 AUR:waybar-niri-taskbar-git              # Waybar module: Niri Workspaces/Taskbar
 AUR:wlogout                              # Logout menu (Shutdown/Reboot/Lock)
 AUR:matugen                              # Material You theme generator
